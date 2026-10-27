@@ -94,7 +94,14 @@ impl PdfCraftApp {
             return None;
         }
         let created = self.session.convert_to_pdf(name, &Arc::new(bytes.to_vec())).map(|(_, pdf)| pdf);
-        Some(self.open_created_bytes(&format!("{}.pdf", stem(name)), created.map_err(|e| e.to_string())))
+        let opened = self.open_created_bytes(&format!("{}.pdf", stem(name)), created.map_err(|e| e.to_string()));
+        // The source file keeps everything the new PDF holds until it is edited (#4942).
+        if opened.is_ok()
+            && let Some(view) = self.views.last_mut()
+        {
+            view.unedited_conversion = self.session.get(view.id).map(|d| d.edit_generation());
+        }
+        Some(opened)
     }
 
     fn open_created_bytes(&mut self, name: &str, created: Result<Arc<Vec<u8>>, String>) -> Result<(), String> {

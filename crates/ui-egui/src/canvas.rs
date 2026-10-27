@@ -294,6 +294,10 @@ pub struct DocView {
     /// The snapshot notice bar's Close was clicked: the tab closes at the top of the next
     /// frame, where no document borrow is held (the bar itself can't close it).
     pub close_requested: bool,
+    /// Opened from an image or text file (Create a PDF): the document's edit generation right
+    /// after the conversion. While it still matches, closing loses nothing the file on disk
+    /// doesn't still have, so the tab doesn't ask to save (#4942).
+    pub(crate) unedited_conversion: Option<u64>,
     /// A historical snapshot of another document (see [`Snapshot`]): `None` for real documents.
     pub snapshot: Option<Snapshot>,
     /// Two-page view: show the first page alone, as a cover (View ▸ Page display).
@@ -613,6 +617,7 @@ impl DocView {
             scripts_off_noted: false,
             disk_changed: false,
             close_requested: false,
+            unedited_conversion: None,
             snapshot: None,
             cover: false,
             back: Vec::new(),
@@ -776,6 +781,7 @@ impl DocView {
         fresh.notice_dismissed = self.notice_dismissed;
         fresh.snapshot = self.snapshot.clone();
         fresh.close_requested = self.close_requested;
+        fresh.unedited_conversion = self.unedited_conversion;
         fresh.cover = self.cover;
         // Still presenting, with the display to go back to on leaving.
         fresh.presentation = self.presentation.take();

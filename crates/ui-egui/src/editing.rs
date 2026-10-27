@@ -620,7 +620,7 @@ impl PdfCraftApp {
     pub(crate) fn has_unsaved_work(&self, index: usize) -> bool {
         let Some(v) = self.views.get(index) else { return false };
         let Some(doc) = self.session.get(v.id) else { return false };
-        doc.dirty
+        unsaved_edits(v, doc)
             || v.pending_edit.is_some()
             || v.content.blocked().is_some()
             || v.forms.focus.as_ref().is_some_and(|f| crate::forms_ui::draft_edit(f, &doc.form).is_some())
@@ -628,6 +628,13 @@ impl PdfCraftApp {
             || new_text_typed(v)
             || v.line_editor.as_ref().map_or_else(|| false, |ed| ed.has_unsaved_text())
     }
+}
+
+/// Whether `doc` has changes a save would keep. A PDF just converted from an image or text file
+/// is new and unsaved, but until it is edited the file it came from still holds everything in
+/// it (#4942).
+pub(crate) fn unsaved_edits(view: &crate::DocView, doc: &pdfcraft_engine::Document) -> bool {
+    doc.dirty && view.unedited_conversion != Some(doc.edit_generation())
 }
 
 /// The single page a content edit changes (`None` for other edits). Like comment edits,

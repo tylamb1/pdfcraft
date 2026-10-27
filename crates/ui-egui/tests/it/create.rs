@@ -70,6 +70,46 @@ fn opening_images_and_text_converts_them_to_new_pdfs() {
     assert!(app.open_bytes("junk.png", None, b"\x89PNG\r\n\x1a\nnot really".to_vec()).is_err());
 }
 
+/// An image or text file opened as a new PDF closes without asking to save until it is edited:
+/// the file it came from still holds everything in it (#4942). A PDF made from several images,
+/// or a blank one, has no such file and still asks.
+#[test]
+fn an_unedited_converted_file_closes_without_asking_to_save() {
+    use egui_kittest::Harness;
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("photo.png", Some("/tmp/photo.png".into()), png()).unwrap();
+        app.open_bytes("notes.txt", None, b"first line".to_vec()).unwrap();
+        app
+    });
+    h.run_steps(3);
+    let app = h.state_mut();
+    assert!(app.session.docs().iter().all(|d| d.dirty), "still new, unsaved PDFs: Save asks where");
+    assert_eq!(app.first_dirty(), None, "nothing to lose yet");
+    app.request_close_tab(1);
+    assert!(app.close_request.is_none());
+    assert_eq!(app.views.len(), 1, "notes.pdf closed at once");
+
+    // Once edited, it has work of its own to lose.
+    app.active = Some(0);
+    assert!(app.apply_edit(pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }));
+    assert_eq!(app.first_dirty(), Some(0));
+    app.request_close_tab(0);
+    assert!(app.close_request.is_some(), "an edited conversion asks before closing");
+    app.close_request = None;
+
+    app.create_from_images(vec![("a.png".into(), png()), ("b.png".into(), png())]);
+    assert!(app.execute("create.blank"));
+    h.run_steps(3);
+    let app = h.state_mut();
+    assert_eq!(app.views.len(), 3);
+    for i in [2, 1] {
+        app.request_close_tab(i);
+        assert!(app.close_request.take().is_some(), "tab {i} has no source file and asks");
+    }
+}
+
 struct ReduceDir(std::path::PathBuf);
 impl ReduceDir {
     fn new() -> Self {
